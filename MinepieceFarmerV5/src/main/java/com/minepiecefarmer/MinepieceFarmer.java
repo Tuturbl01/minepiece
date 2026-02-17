@@ -9,6 +9,7 @@ import com.minepiecefarmer.data.PlayerData;
 import com.minepiecefarmer.gui.FarmerScreen;
 import com.minepiecefarmer.movement.PathHelper;
 import com.minepiecefarmer.util.Constants;
+import com.minepiecefarmer.util.ReflectionCache;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -62,6 +63,9 @@ public class MinepieceFarmer implements ClientModInitializer {
 
         // ── CONFIG ──
         config = ConfigManager.load();
+
+        // ── REFLECTION CACHE ──
+        ReflectionCache.initialize();
 
         // ── DATA ──
         data = new PlayerData();

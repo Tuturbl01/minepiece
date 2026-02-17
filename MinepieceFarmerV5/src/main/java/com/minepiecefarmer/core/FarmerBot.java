@@ -247,8 +247,11 @@ public class FarmerBot {
     private void tickApproaching(MinecraftClient client, ClientPlayerEntity player, ModConfig config) {
         Entity target = targetSelector.getCurrentTarget();
         if (target == null || target.isRemoved() || !target.isAlive()) {
-            targetSelector.invalidateTarget(); PathHelper.cancel();
-            MovementHelper.stopMovement(client); setState(State.SEARCHING); return;
+            targetSelector.invalidateTarget(); 
+            PathHelper.cancel();
+            MovementHelper.stopMovement(client); 
+            setState(State.SEARCHING); 
+            return;
         }
 
         double dist = player.distanceTo(target);
@@ -306,8 +309,11 @@ public class FarmerBot {
         }
 
         Entity better = targetSelector.selectTarget(client, player, config);
-        if (better != null && better != target && player.distanceTo(better) <= config.combat.attackRange) {
-            combatHandler.resetInvincibleCounter();
+        if (better != null && better != target && !better.isRemoved() && better.isAlive()) {
+            double betterDist = player.distanceTo(better);
+            if (betterDist <= config.combat.attackRange) {
+                combatHandler.resetInvincibleCounter();
+            }
         }
 
         combatHandler.ensureSwordEquipped(player, config);
@@ -334,9 +340,14 @@ public class FarmerBot {
     private void setState(State s) { state = s; stateTicks = 0; }
 
     private void startPath(MinecraftClient c, ClientPlayerEntity p, Entity t, ModConfig cfg) {
+        if (t == null || t.isRemoved()) {
+            return;
+        }
         if (PathHelper.isAvailable()) {
             Vec3d pos = t.getPos();
-            PathHelper.pathNear(pos.x, pos.y, pos.z, (int) cfg.combat.attackRange);
+            if (pos != null) {
+                PathHelper.pathNear(pos.x, pos.y, pos.z, (int) cfg.combat.attackRange);
+            }
         }
     }
 
@@ -353,19 +364,37 @@ public class FarmerBot {
     public String statusLine() {
         StringBuilder sb = new StringBuilder(state.label);
         Entity t = targetSelector.getCurrentTarget();
-        if (t != null && MinecraftClient.getInstance().player != null) {
-            sb.append(" \u00A77(").append(String.format("%.1f", MinecraftClient.getInstance().player.distanceTo(t))).append("m)");
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (t != null && !t.isRemoved() && client != null && client.player != null) {
+            try {
+                double dist = client.player.distanceTo(t);
+                sb.append(" \u00A77(").append(String.format("%.1f", dist)).append("m)");
+            } catch (Exception e) {
+                // Ignore distance calculation errors
+            }
         }
-        if (PathHelper.isAvailable() && PathHelper.isPathing()) sb.append(" \u00A7b->");
-        if (combatHandler.isFruitActive()) sb.append(" \u00A7dFRUIT");
+        if (PathHelper.isAvailable() && PathHelper.isPathing()) {
+            sb.append(" \u00A7b->");
+        }
+        if (combatHandler != null && combatHandler.isFruitActive()) {
+            sb.append(" \u00A7dFRUIT");
+        }
 
-        BossPatrol.PatrolState ps = bossPatrol.getPatrolState();
-        if (ps == BossPatrol.PatrolState.GOING_TO_BOSS) sb.append(" \u00A76[BOSS]");
-        else if (ps == BossPatrol.PatrolState.GOING_TO_MINIBOSS) sb.append(" \u00A7d[MINI]");
-        else if (ps == BossPatrol.PatrolState.FIGHTING_BOSS) sb.append(" \u00A7c[FIGHT]");
+        if (bossPatrol != null) {
+            BossPatrol.PatrolState ps = bossPatrol.getPatrolState();
+            if (ps == BossPatrol.PatrolState.GOING_TO_BOSS) {
+                sb.append(" \u00A76[BOSS]");
+            } else if (ps == BossPatrol.PatrolState.GOING_TO_MINIBOSS) {
+                sb.append(" \u00A7d[MINI]");
+            } else if (ps == BossPatrol.PatrolState.FIGHTING_BOSS) {
+                sb.append(" \u00A7c[FIGHT]");
+            }
 
-        String tn = bossPatrol.getCurrentTargetName();
-        if (tn != null) sb.append(" \u00A77").append(tn);
+            String tn = bossPatrol.getCurrentTargetName();
+            if (tn != null && !tn.isEmpty()) {
+                sb.append(" \u00A77").append(tn);
+            }
+        }
 
         return sb.toString();
     }

@@ -179,12 +179,23 @@ public class BossPatrol {
     // ═══════════ BOSS DETECTION ═══════════
 
     private boolean isBossNearby(MinecraftClient client, ClientPlayerEntity player, Vec3d pos) {
-        if (client.world == null) return false;
-        for (Entity e : client.world.getEntities()) {
-            if (e == player) continue;
-            if (!e.getType().toString().toLowerCase().contains("interaction")) continue;
-            if (e.getWidth() < 0.8f || e.getHeight() < 1.0f) continue;
-            if (e.getPos().distanceTo(pos) < Constants.BOSS_DETECTION_RADIUS) return true;
+        if (client == null || client.world == null || pos == null) {
+            return false;
+        }
+        try {
+            for (Entity e : client.world.getEntities()) {
+                if (e == null || e == player) continue;
+                String typeName = e.getType().toString();
+                if (typeName == null) continue;
+                if (!typeName.toLowerCase().contains("interaction")) continue;
+                if (e.getWidth() < 0.8f || e.getHeight() < 1.0f) continue;
+                Vec3d entityPos = e.getPos();
+                if (entityPos != null && entityPos.distanceTo(pos) < Constants.BOSS_DETECTION_RADIUS) {
+                    return true;
+                }
+            }
+        } catch (Exception ex) {
+            MinepieceFarmer.LOGGER.warn("Error checking boss nearby: {}", ex.getMessage());
         }
         return false;
     }

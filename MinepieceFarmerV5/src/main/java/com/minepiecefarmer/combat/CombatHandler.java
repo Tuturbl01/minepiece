@@ -4,14 +4,13 @@ import com.minepiecefarmer.MinepieceFarmer;
 import com.minepiecefarmer.config.ModConfig;
 import com.minepiecefarmer.data.PlayerData;
 import com.minepiecefarmer.util.Constants;
+import com.minepiecefarmer.util.ReflectionCache;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.Random;
 
 /**
@@ -26,12 +25,7 @@ public class CombatHandler {
     private final PlayerData data;
     private final Random random = new Random();
 
-    private static Method doAttackMethod = null;
-    private static boolean attackMethodSearched = false;
     private int attackCooldown = 0;
-
-    private static Field selectedSlotField = null;
-    private static boolean slotFieldSearched = false;
 
     private int hakiTimer = 0;
     private int hakiReleaseTimer = -1;
@@ -134,28 +128,15 @@ public class CombatHandler {
     private void performAttack(MinecraftClient client) {
         // Dernière vérification avant attaque
         if (fruitInHand || isFruitActive()) return;
+        
+        if (client == null) {
+            MinepieceFarmer.LOGGER.warn("Cannot attack: client is null");
+            return;
+        }
 
-        try {
-            if (!attackMethodSearched) {
-                attackMethodSearched = true;
-                for (Method method : MinecraftClient.class.getDeclaredMethods()) {
-                    if (method.getParameterCount() == 0 && method.getReturnType() == boolean.class) {
-                        String name = method.getName();
-                        if (name.contains("Attack") || name.contains("attack") ||
-                            name.equals("doAttack") || name.equals("method_1536")) {
-                            doAttackMethod = method;
-                            doAttackMethod.setAccessible(true);
-                            MinepieceFarmer.LOGGER.info("doAttack found: {}", name);
-                            break;
-                        }
-                    }
-                }
-            }
-            if (doAttackMethod != null) {
-                doAttackMethod.invoke(client);
-            }
-        } catch (Exception e) {
-            MinepieceFarmer.LOGGER.debug("Attack error: {}", e.getMessage());
+        boolean success = ReflectionCache.invokeDoAttack(client);
+        if (!success) {
+            MinepieceFarmer.LOGGER.debug("Attack invocation failed");
         }
     }
 
@@ -262,6 +243,7 @@ public class CombatHandler {
     // ══════════════════════════════════════════════
 
     public void ensureSwordEquipped(ClientPlayerEntity player, ModConfig config) {
+        if (player == null) return;
         if (getSelectedSlot(player) != config.swordSlotIndex()) {
             selectSlot(player, config.swordSlotIndex());
             fruitInHand = false;
@@ -269,52 +251,27 @@ public class CombatHandler {
     }
 
     public void selectSlot(ClientPlayerEntity player, int slot) {
-        if (slot < 0 || slot > 8) return;
-        if (!slotFieldSearched) {
-            slotFieldSearched = true;
-            try {
-                for (Field f : PlayerInventory.class.getDeclaredFields()) {
-                    if (f.getType() == int.class) {
-                        f.setAccessible(true);
-                        int val = f.getInt(player.getInventory());
-                        if (val >= 0 && val <= 8) {
-                            String name = f.getName();
-                            if (name.contains("selected") || name.contains("Slot") ||
-                                name.contains("slot") || name.equals("field_7545")) {
-                                selectedSlotField = f;
-                                break;
-                            }
-                        }
-                    }
-                }
-                if (selectedSlotField == null) {
-                    for (Field f : PlayerInventory.class.getDeclaredFields()) {
-                        if (f.getType() == int.class) {
-                            f.setAccessible(true);
-                            int val = f.getInt(player.getInventory());
-                            if (val >= 0 && val <= 8) {
-                                selectedSlotField = f;
-                                break;
-                            }
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                MinepieceFarmer.LOGGER.warn("Cannot find selectedSlot: {}", e.getMessage());
-            }
+        if (player == null) {
+            MinepieceFarmer.LOGGER.warn("Cannot select slot: player is null");
+            return;
         }
-        if (selectedSlotField != null) {
-            try { selectedSlotField.setInt(player.getInventory(), slot); }
-            catch (Exception ignored) {}
+        if (slot < 0 || slot > 8) {
+            MinepieceFarmer.LOGGER.warn("Invalid slot number: {}", slot);
+            return;
+        }
+        
+        boolean success = ReflectionCache.setSelectedSlot(player.getInventory(), slot);
+        if (!success) {
+            MinepieceFarmer.LOGGER.debug("Slot selection failed for slot {}", slot);
         }
     }
 
     public int getSelectedSlot(ClientPlayerEntity player) {
-        if (selectedSlotField != null) {
-            try { return selectedSlotField.getInt(player.getInventory()); }
-            catch (Exception ignored) {}
+        if (player == null) {
+            MinepieceFarmer.LOGGER.warn("Cannot get slot: player is null");
+            return -1;
         }
-        return -1;
+        return ReflectionCache.getSelectedSlot(player.getInventory());
     }
 
     public void reset(MinecraftClient client, ModConfig config) {
