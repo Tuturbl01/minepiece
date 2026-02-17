@@ -15,6 +15,13 @@ import java.util.Map;
 
 public class HudOverlay {
 
+    // Cached formatted strings to reduce allocations
+    private static String cachedBerriesStr = "";
+    private static String cachedXpStr = "";
+    private static String cachedDurationStr = "";
+    private static long lastCacheUpdate = 0;
+    private static final long CACHE_UPDATE_INTERVAL = 1000; // Update cache every second
+
     private static final int BG = 0x90000000;
     private static final int ACCENT = 0xFF996600;
 
@@ -69,10 +76,10 @@ public class HudOverlay {
         String fs = config.fruit.enabled ? "\u00A7dF" : "\u00A77F";
         dt(ctx, tr, hs + " " + fs + (bot.getCombatHandler().isFruitActive() ? " \u00A7d!" : ""), x + 4, cy); cy += lh;
 
-        dt(ctx, tr, String.format("\u00A77%s \u00A78| \u00A7c%d kills", data.sessionDuration(), data.sessionKills), x + 4, cy); cy += lh;
+        dt(ctx, tr, String.format("\u00A77%s \u00A78| \u00A7c%d kills", getCachedDuration(data), data.sessionKills), x + 4, cy); cy += lh;
         dt(ctx, tr, String.format("\u00A7e%.1f k/m \u00A78| \u00A7e%d atk", data.killsPerMinute(), data.totalAttacks), x + 4, cy); cy += lh;
-        dt(ctx, tr, String.format("\u00A76+%s B \u00A78(%.0f/m)", fmt(data.sessionBerriesGained), data.berriesPerMinute()), x + 4, cy); cy += lh;
-        dt(ctx, tr, String.format("\u00A7a+%s XP", fmt(data.sessionXpGained)), x + 4, cy); cy += lh;
+        dt(ctx, tr, String.format("\u00A76+%s B \u00A78(%.0f/m)", getCachedBerries(data), data.berriesPerMinute()), x + 4, cy); cy += lh;
+        dt(ctx, tr, String.format("\u00A7a+%s XP", getCachedXp(data)), x + 4, cy); cy += lh;
 
         if (!data.island.isEmpty()) {
             String is = data.island.length() > 18 ? data.island.substring(0, 18) + ".." : data.island;
@@ -143,6 +150,39 @@ public class HudOverlay {
 
     private static void dt(DrawContext ctx, TextRenderer tr, String text, int x, int y) {
         ctx.drawText(tr, text, x, y, 0xFFFFFF, true);
+    }
+
+    // ═══════════ CACHED FORMATTING ═══════════
+
+    /**
+     * Updates the cached formatted strings if needed.
+     * Only updates once per second to reduce String allocations.
+     */
+    private static void updateCache(PlayerData data) {
+        long now = System.currentTimeMillis();
+        if (now - lastCacheUpdate < CACHE_UPDATE_INTERVAL) {
+            return;
+        }
+        lastCacheUpdate = now;
+        
+        cachedBerriesStr = fmt(data.sessionBerriesGained);
+        cachedXpStr = fmt(data.sessionXpGained);
+        cachedDurationStr = data.sessionDuration();
+    }
+    
+    private static String getCachedBerries(PlayerData data) {
+        updateCache(data);
+        return cachedBerriesStr;
+    }
+    
+    private static String getCachedXp(PlayerData data) {
+        updateCache(data);
+        return cachedXpStr;
+    }
+    
+    private static String getCachedDuration(PlayerData data) {
+        updateCache(data);
+        return cachedDurationStr;
     }
 
     private static String fmt(long n) {

@@ -46,6 +46,7 @@ public class EntityClassifier {
 
     /**
      * Scanne toutes les entités du monde et met à jour les comptages.
+     * Optimisé pour éviter les itérations inutiles.
      */
     public void scan(MinecraftClient client, ModConfig config) {
         if (client.world == null || client.player == null) return;
@@ -54,9 +55,24 @@ public class EntityClassifier {
         interactionCountByZone.clear();
 
         double groupRadius = config.entity.groupRadius;
+        ClientPlayerEntity player = client.player;
+        double scanRangeSquared = config.combat.searchRange * config.combat.searchRange * 1.5 * 1.5;
 
+        // Only scan entities within reasonable range of player to reduce overhead
         for (Entity entity : client.world.getEntities()) {
+            if (entity == null) continue;
+            
+            // Skip entities far from player to reduce processing
+            try {
+                double distSq = entity.squaredDistanceTo(player);
+                if (distSq > scanRangeSquared) continue;
+            } catch (Exception e) {
+                // If distance check fails, skip this entity
+                continue;
+            }
+
             String typeName = getTypeName(entity);
+            if (typeName == null) continue;
 
             // Quantifier le XZ (arrondi à 0.5 bloc pour grouper)
             long zoneKey = quantizePos(entity.getX(), entity.getZ(), groupRadius);
@@ -168,7 +184,12 @@ public class EntityClassifier {
     // ═══════════ UTILS ═══════════
 
     private static String getTypeName(Entity entity) {
-        return entity.getType().toString().toLowerCase();
+        if (entity == null) return "";
+        try {
+            return entity.getType().toString().toLowerCase();
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     /**
