@@ -34,12 +34,20 @@ public class IslandConfig {
         public double[] center = null;
 
         public boolean contains(double x, double z) {
-            if (points.size() < 3) return false;
+            if (points == null || points.size() < 3) return false;
             boolean inside = false;
             int j = points.size() - 1;
             for (int i = 0; i < points.size(); i++) {
-                double xi = points.get(i)[0], zi = points.get(i)[1];
-                double xj = points.get(j)[0], zj = points.get(j)[1];
+                double[] point = points.get(i);
+                double[] pointJ = points.get(j);
+                
+                // Null safety checks
+                if (point == null || point.length < 2 || pointJ == null || pointJ.length < 2) {
+                    continue;
+                }
+                
+                double xi = point[0], zi = point[1];
+                double xj = pointJ[0], zj = pointJ[1];
                 if ((zi > z) != (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi)
                     inside = !inside;
                 j = i;
@@ -75,24 +83,33 @@ public class IslandConfig {
 
     /** Vérifie si une position est dans une zone d'exclusion */
     public boolean isExcluded(double x, double z) {
+        if (exclusionZones == null) return false;
         for (FarmZone zone : exclusionZones) {
-            if (zone.enabled && zone.contains(x, z)) return true;
+            if (zone != null && zone.enabled && zone.contains(x, z)) {
+                return true;
+            }
         }
         return false;
     }
 
     /** Mobs triés par priority */
     public List<MobInfo> getMobsByPriority() {
+        if (knownMobs == null) return new ArrayList<>();
         List<MobInfo> sorted = new ArrayList<>(knownMobs);
+        // Remove null entries
+        sorted.removeIf(mob -> mob == null);
         sorted.sort((a, b) -> Integer.compare(a.priority, b.priority));
         return sorted;
     }
 
     /** Mobs de type donné, triés par priority */
     public List<MobInfo> getMobsByType(String type) {
+        if (type == null) return new ArrayList<>();
         List<MobInfo> result = new ArrayList<>();
         for (MobInfo mob : getMobsByPriority()) {
-            if (type.equals(mob.type)) result.add(mob);
+            if (mob != null && type.equals(mob.type)) {
+                result.add(mob);
+            }
         }
         return result;
     }
