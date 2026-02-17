@@ -22,17 +22,33 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * MinepieceFarmer v5 — Point d'entrée principal.
+ * MinepieceFarmer v5.2 — Point d'entrée principal.
  *
- * Architecture modulaire:
- *   - config/   → Config JSON 100% personnalisable
- *   - core/     → FarmerBot (machine à états)
- *   - combat/   → CombatHandler (attaque, haki, fruit)
- *   - data/     → BossBarParser, ActionBarParser, PlayerData
- *   - entity/   → EntityClassifier, TargetSelector
- *   - movement/ → MovementHelper, PathHelper
- *   - gui/      → FarmerScreen, HudOverlay
- *   - mixin/    → BossBarAccessor, NetworkHandler, HudRender
+ * <p>Architecture modulaire refactorisée pour qualité et performance:</p>
+ * <ul>
+ *   <li><b>config/</b>   → Configuration JSON validée avec auto-correction</li>
+ *   <li><b>core/</b>     → FarmerBot (machine à états) et BossPatrol</li>
+ *   <li><b>combat/</b>   → CombatHandler (attaque, haki, fruit) avec reflection robuste</li>
+ *   <li><b>data/</b>     → Parsing boss bars, action bars, stats de session</li>
+ *   <li><b>entity/</b>   → Classification et sélection de cibles optimisées</li>
+ *   <li><b>movement/</b> → Intégration Baritone et contrôle de mouvement</li>
+ *   <li><b>gui/</b>      → Interface utilisateur et HUD overlay</li>
+ *   <li><b>mixin/</b>    → Hooks réseau et rendering</li>
+ *   <li><b>util/</b>     → Constants, validation config, cache reflection</li>
+ * </ul>
+ *
+ * <p><b>Améliorations qualité v5.2:</b></p>
+ * <ul>
+ *   <li>Constantes centralisées (40+ magic numbers éliminés)</li>
+ *   <li>Validation de configuration automatique</li>
+ *   <li>Cache de reflection avec fallback robuste</li>
+ *   <li>Null checks systématiques</li>
+ *   <li>Optimisations de performance (entity scan, HUD rendering)</li>
+ *   <li>Logging structuré et informatif</li>
+ * </ul>
+ *
+ * @version 5.2.0
+ * @since 5.0.0
  */
 public class MinepieceFarmer implements ClientModInitializer {
 
@@ -58,7 +74,7 @@ public class MinepieceFarmer implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         LOGGER.info("╔══════════════════════════════════╗");
-        LOGGER.info("║  MinepieceFarmer v5.0 — Chargé!  ║");
+        LOGGER.info("║  MinepieceFarmer v5.2 — Chargé!  ║");
         LOGGER.info("╚══════════════════════════════════╝");
 
         // ── CONFIG ──
