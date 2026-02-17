@@ -8,6 +8,7 @@ import com.minepiecefarmer.entity.EntityClassifier;
 import com.minepiecefarmer.entity.TargetSelector;
 import com.minepiecefarmer.movement.MovementHelper;
 import com.minepiecefarmer.movement.PathHelper;
+import com.minepiecefarmer.util.Constants;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.Entity;
@@ -158,7 +159,7 @@ public class FarmerBot {
                         combatHandler.tryAttack(client, config);
                         combatHandler.tryHaki(client, config);
                         return;
-                    } else if (dist <= 12.0) {
+                    } else if (dist <= Constants.MOB_AVOIDANCE_RADIUS) {
                         // Mob très proche de la route → petit détour
                         MovementHelper.lookAtEntity(player, nearby,
                                 config.movement.lookSpeed, config.movement.lookWobble);
@@ -173,7 +174,7 @@ public class FarmerBot {
                     if (PathHelper.isAvailable()) {
                         if (repathCooldown <= 0) {
                             PathHelper.pathTo(patrolTarget.x, patrolTarget.y, patrolTarget.z);
-                            repathCooldown = 60;
+                            repathCooldown = Constants.REPATH_COOLDOWN_TICKS;
                         }
                     } else {
                         MovementHelper.walkToward(client, player, patrolTarget,
@@ -226,13 +227,13 @@ public class FarmerBot {
     private void tickIdleWander(MinecraftClient client, ClientPlayerEntity player, ModConfig config) {
         if (noTargetTicks <= 60) {
             if (noTargetTicks % 20 == 0) {
-                float turn = 30f + random.nextFloat() * 20f;
+                float turn = Constants.IDLE_WANDER_YAW_1 + random.nextFloat() * Constants.IDLE_WANDER_YAW_2;
                 if (random.nextBoolean()) turn = -turn;
                 player.setYaw(player.getYaw() + turn);
             }
         } else if (noTargetTicks <= 120) {
             if (noTargetTicks % 25 == 0) {
-                float turn = 40f + random.nextFloat() * 30f;
+                float turn = Constants.IDLE_WANDER_YAW_3 + random.nextFloat() * Constants.IDLE_WANDER_YAW_4;
                 if (random.nextBoolean()) turn = -turn;
                 player.setYaw(player.getYaw() + turn);
             }
@@ -276,7 +277,7 @@ public class FarmerBot {
         } else {
             MovementHelper.setMovement(client, true, false, false, false);
             Vec3d cur = player.getPos();
-            if (lastPos != null && MovementHelper.horizontalDistanceSq(lastPos, cur) < 0.01) {
+            if (lastPos != null && MovementHelper.horizontalDistanceSq(lastPos, cur) < Constants.STUCK_THRESHOLD_DISTANCE) {
                 stuckTicks++;
                 if (stuckTicks > config.movement.stuckThreshold) handleStuck(client, player);
             } else { if (stuckTicks > 0 && stuckTicks < config.movement.stuckThreshold) stuckTicks = 0; }

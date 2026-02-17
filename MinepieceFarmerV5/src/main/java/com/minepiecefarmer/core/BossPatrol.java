@@ -4,6 +4,7 @@ import com.minepiecefarmer.MinepieceFarmer;
 import com.minepiecefarmer.config.IslandConfig;
 import com.minepiecefarmer.config.ModConfig;
 import com.minepiecefarmer.movement.PathHelper;
+import com.minepiecefarmer.util.Constants;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.Entity;
@@ -91,7 +92,7 @@ public class BossPatrol {
             Vec3d bossPos = new Vec3d(mob.coords[0], mob.coords[1], mob.coords[2]);
             double dist = player.getPos().distanceTo(bossPos);
 
-            if (dist > 8.0) {
+            if (dist > Constants.BOSS_ARRIVAL_DISTANCE) {
                 if (!goingToBoss || !mob.name.equals(currentBossName)) {
                     goingToBoss = true;
                     currentBossName = mob.name;
@@ -149,7 +150,7 @@ public class BossPatrol {
             Vec3d targetPos = new Vec3d(mob.coords[0], mob.coords[1], mob.coords[2]);
             double dist = player.getPos().distanceTo(targetPos);
 
-            if (dist > 8.0) {
+            if (dist > Constants.BOSS_ARRIVAL_DISTANCE) {
                 if (!goingToMiniBoss || !mob.name.equals(currentMiniBossName)) {
                     goingToMiniBoss = true;
                     currentMiniBossName = mob.name;
@@ -183,7 +184,7 @@ public class BossPatrol {
             if (e == player) continue;
             if (!e.getType().toString().toLowerCase().contains("interaction")) continue;
             if (e.getWidth() < 0.8f || e.getHeight() < 1.0f) continue;
-            if (e.getPos().distanceTo(pos) < 10.0) return true;
+            if (e.getPos().distanceTo(pos) < Constants.BOSS_DETECTION_RADIUS) return true;
         }
         return false;
     }

@@ -3,6 +3,7 @@ package com.minepiecefarmer.combat;
 import com.minepiecefarmer.MinepieceFarmer;
 import com.minepiecefarmer.config.ModConfig;
 import com.minepiecefarmer.data.PlayerData;
+import com.minepiecefarmer.util.Constants;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
@@ -43,7 +44,6 @@ public class CombatHandler {
 
     private int hitsWithoutHurtSound = 0;
     private long lastKnownHurtTime = 0;
-    private static final int INVINCIBLE_HIT_THRESHOLD = 12;
 
     public CombatHandler(PlayerData data) {
         this.data = data;
@@ -109,7 +109,7 @@ public class CombatHandler {
             int currentSlot = getSelectedSlot(client.player);
             if (currentSlot == config.fruitSlotIndex()) {
                 selectSlot(client.player, config.swordSlotIndex());
-                attackCooldown = 5;
+                attackCooldown = Constants.SLOT_SWITCH_COOLDOWN;
                 return false;
             }
             ensureSwordEquipped(client.player, config);
@@ -124,7 +124,7 @@ public class CombatHandler {
     }
 
     public boolean isMobInvincible() {
-        return hitsWithoutHurtSound >= INVINCIBLE_HIT_THRESHOLD;
+        return hitsWithoutHurtSound >= Constants.INVINCIBLE_HIT_THRESHOLD;
     }
 
     public void resetInvincibleCounter() {

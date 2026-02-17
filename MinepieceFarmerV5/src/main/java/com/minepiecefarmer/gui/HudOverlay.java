@@ -6,6 +6,7 @@ import com.minepiecefarmer.core.BossPatrol;
 import com.minepiecefarmer.core.FarmerBot;
 import com.minepiecefarmer.data.PlayerData;
 import com.minepiecefarmer.movement.PathHelper;
+import com.minepiecefarmer.util.Constants;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
@@ -38,13 +39,13 @@ public class HudOverlay {
 
         TextRenderer tr = client.textRenderer;
         int x = config.hud.overlayX, y = config.hud.overlayY;
-        int lh = 11, w = 175;
+        int lh = Constants.HUD_LINE_HEIGHT, w = 175;
 
         int lines = bot.isRunning() ? 10 : 3;
         int h = lines * lh + 8;
 
-        ctx.fill(x, y, x + w, y + h, BG);
-        ctx.fill(x, y, x + w, y + 2, ACCENT);
+        ctx.fill(x, y, x + w, y + h, Constants.HUD_BACKGROUND_COLOR);
+        ctx.fill(x, y, x + w, y + 2, Constants.HUD_ACCENT_COLOR);
 
         int cy = y + 4;
         dt(ctx, tr, "\u00A76\u00A7lFarmer \u00A77v5.2", x + 4, cy); cy += lh;
@@ -105,7 +106,7 @@ public class HudOverlay {
         int lines = timers.size() + 1;
         int h = lines * lh + 8;
 
-        ctx.fill(x, y, x + panelW, y + h, BG);
+        ctx.fill(x, y, x + panelW, y + h, Constants.HUD_BACKGROUND_COLOR);
         ctx.fill(x, y, x + panelW, y + 2, 0xFFCC3333);
 
         int cy = y + 4;
@@ -131,7 +132,9 @@ public class HudOverlay {
             }
 
             // Tronquer le nom si trop long
-            if (name.length() > 10) name = name.substring(0, 10);
+            if (name.length() > Constants.HUD_TEXT_MAX_LENGTH) {
+                name = name.substring(0, Constants.HUD_TEXT_MAX_LENGTH) + Constants.HUD_TEXT_TRUNCATION;
+            }
 
             dt(ctx, tr, "\u00A77" + name + " " + color + timeStr, x + 4, cy);
             cy += lh;
@@ -143,8 +146,12 @@ public class HudOverlay {
     }
 
     private static String fmt(long n) {
-        if (n >= 1_000_000) return String.format("%.2fM", n / 1_000_000.0);
-        if (n >= 1_000) return String.format("%.1fK", n / 1_000.0);
+        if (n >= Constants.NUMBER_FORMAT_MILLION) {
+            return String.format("%.2fM", n / (double) Constants.NUMBER_FORMAT_MILLION);
+        }
+        if (n >= Constants.NUMBER_FORMAT_THOUSAND) {
+            return String.format("%.1fK", n / (double) Constants.NUMBER_FORMAT_THOUSAND);
+        }
         return String.valueOf(n);
     }
 }
