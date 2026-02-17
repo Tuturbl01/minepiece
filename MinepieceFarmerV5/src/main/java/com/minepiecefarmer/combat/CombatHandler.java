@@ -1,0 +1,330 @@
+package com.minepiecefarmer.combat;
+
+import com.minepiecefarmer.MinepieceFarmer;
+import com.minepiecefarmer.config.ModConfig;
+import com.minepiecefarmer.data.PlayerData;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.util.hit.EntityHitResult;
+import net.minecraft.util.hit.HitResult;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.Random;
+
+/**
+ * v5.2 Fixes:
+ *   1. BLOCS: Vérifie crosshairTarget == EntityHitResult AVANT d'attaquer.
+ *      Plus jamais de blocs cassés.
+ *   2. FRUIT: Triple protection — aucun clic gauche possible quand fruit en main.
+ *      Variable fruitInHand pour tracker si le slot actif = fruit.
+ */
+public class CombatHandler {
+
+    private final PlayerData data;
+    private final Random random = new Random();
+
+    private static Method doAttackMethod = null;
+    private static boolean attackMethodSearched = false;
+    private int attackCooldown = 0;
+
+    private static Field selectedSlotField = null;
+    private static boolean slotFieldSearched = false;
+
+    private int hakiTimer = 0;
+    private int hakiReleaseTimer = -1;
+
+    private int fruitCooldown = 0;
+    private int fruitStep = -1;
+    private int fruitTickCounter = 0;
+    /** TRUE dès qu'on switch au fruit, FALSE quand on revient à l'épée */
+    private boolean fruitInHand = false;
+
+    private int hitsWithoutHurtSound = 0;
+    private long lastKnownHurtTime = 0;
+    private static final int INVINCIBLE_HIT_THRESHOLD = 12;
+
+    public CombatHandler(PlayerData data) {
+        this.data = data;
+    }
+
+    // ══════════════════════════════════════════════
+    //  TICK
+    // ══════════════════════════════════════════════
+
+    public void tick(MinecraftClient client, ModConfig config) {
+        if (client.player == null) return;
+
+        if (attackCooldown > 0) attackCooldown--;
+        if (fruitCooldown > 0) fruitCooldown--;
+        hakiTimer++;
+
+        // *** PROTECTION FRUIT: bloquer TOUT clic gauche si fruit en main ***
+        if (fruitInHand) {
+            client.options.attackKey.setPressed(false);
+        }
+
+        if (hakiReleaseTimer > 0) {
+            hakiReleaseTimer--;
+        } else if (hakiReleaseTimer == 0) {
+            client.options.useKey.setPressed(false);
+            hakiReleaseTimer = -1;
+        }
+
+        if (fruitStep >= 0) {
+            tickFruit(client, client.player, config);
+        }
+
+        if (data.lastHurtSoundTime > lastKnownHurtTime) {
+            lastKnownHurtTime = data.lastHurtSoundTime;
+            hitsWithoutHurtSound = 0;
+        }
+    }
+
+    // ══════════════════════════════════════════════
+    //  ATTAQUE — VÉRIFIE CROSSHAIR TARGET
+    // ══════════════════════════════════════════════
+
+    /**
+     * Attaque UNIQUEMENT si:
+     *   - Le crosshair pointe sur une ENTITÉ (pas un bloc/air)
+     *   - Le fruit N'EST PAS en main
+     *   - Le cooldown est OK
+     */
+    public boolean tryAttack(MinecraftClient client, ModConfig config) {
+        if (!config.combat.autoAttack) return false;
+        if (attackCooldown > 0) return false;
+        if (isFruitActive() || fruitInHand) return false;
+
+        // *** FIX BLOCS: vérifier que le crosshair pointe sur une entité ***
+        HitResult target = client.crosshairTarget;
+        if (target == null || target.getType() != HitResult.Type.ENTITY) {
+            // On ne pointe pas sur une entité → NE PAS ATTAQUER
+            return false;
+        }
+
+        // Vérifier l'épée en main
+        if (client.player != null) {
+            int currentSlot = getSelectedSlot(client.player);
+            if (currentSlot == config.fruitSlotIndex()) {
+                selectSlot(client.player, config.swordSlotIndex());
+                attackCooldown = 5;
+                return false;
+            }
+            ensureSwordEquipped(client.player, config);
+        }
+
+        performAttack(client);
+        attackCooldown = config.combat.attackCooldownMin +
+                random.nextInt(Math.max(1, config.combat.attackCooldownRandom));
+        data.totalAttacks++;
+        hitsWithoutHurtSound++;
+        return true;
+    }
+
+    public boolean isMobInvincible() {
+        return hitsWithoutHurtSound >= INVINCIBLE_HIT_THRESHOLD;
+    }
+
+    public void resetInvincibleCounter() {
+        hitsWithoutHurtSound = 0;
+    }
+
+    private void performAttack(MinecraftClient client) {
+        // Dernière vérification avant attaque
+        if (fruitInHand || isFruitActive()) return;
+
+        try {
+            if (!attackMethodSearched) {
+                attackMethodSearched = true;
+                for (Method method : MinecraftClient.class.getDeclaredMethods()) {
+                    if (method.getParameterCount() == 0 && method.getReturnType() == boolean.class) {
+                        String name = method.getName();
+                        if (name.contains("Attack") || name.contains("attack") ||
+                            name.equals("doAttack") || name.equals("method_1536")) {
+                            doAttackMethod = method;
+                            doAttackMethod.setAccessible(true);
+                            MinepieceFarmer.LOGGER.info("doAttack found: {}", name);
+                            break;
+                        }
+                    }
+                }
+            }
+            if (doAttackMethod != null) {
+                doAttackMethod.invoke(client);
+            }
+        } catch (Exception e) {
+            MinepieceFarmer.LOGGER.debug("Attack error: {}", e.getMessage());
+        }
+    }
+
+    // ══════════════════════════════════════════════
+    //  HAKI
+    // ══════════════════════════════════════════════
+
+    public boolean tryHaki(MinecraftClient client, ModConfig config) {
+        if (!config.haki.enabled) return false;
+        if (hakiTimer < config.haki.intervalTicks) return false;
+        if (isFruitActive() || fruitInHand) return false;
+
+        ensureSwordEquipped(client.player, config);
+        client.options.useKey.setPressed(true);
+        hakiReleaseTimer = config.haki.clickDuration;
+        hakiTimer = 0;
+        return true;
+    }
+
+    // ══════════════════════════════════════════════
+    //  FRUIT — TRIPLE PROTECTION
+    // ══════════════════════════════════════════════
+
+    public boolean checkFruit(ModConfig config) {
+        if (!config.fruit.enabled) return false;
+        if (fruitStep >= 0) return true;
+        if (fruitCooldown > 0) return false;
+        if (data.hp <= 0 || data.hp >= config.fruit.hpThreshold) return false;
+        startFruit(config);
+        return true;
+    }
+
+    private void startFruit(ModConfig config) {
+        fruitStep = 0;
+        fruitTickCounter = 0;
+        fruitCooldown = config.fruit.cooldownTicks;
+    }
+
+    private void tickFruit(MinecraftClient client, ClientPlayerEntity player, ModConfig config) {
+        fruitTickCounter++;
+
+        // TOUJOURS bloquer le clic gauche pendant toute la séquence
+        client.options.attackKey.setPressed(false);
+
+        switch (fruitStep) {
+            case 0 -> { // SWITCH_TO_FRUIT
+                selectSlot(player, config.fruitSlotIndex());
+                fruitInHand = true; // MARQUÉ: fruit en main
+                fruitStep = 1;
+                fruitTickCounter = 0;
+            }
+            case 1 -> { // WAIT_SWITCH
+                if (fruitTickCounter >= config.fruit.switchDelay) {
+                    fruitStep = 2;
+                    fruitTickCounter = 0;
+                }
+            }
+            case 2 -> { // USE_FRUIT (clic droit)
+                client.options.useKey.setPressed(true);
+                fruitStep = 3;
+                fruitTickCounter = 0;
+            }
+            case 3 -> { // HOLD_USE
+                if (fruitTickCounter >= config.fruit.useDuration) {
+                    fruitStep = 4;
+                    fruitTickCounter = 0;
+                }
+            }
+            case 4 -> { // RELEASE
+                client.options.useKey.setPressed(false);
+                fruitStep = 5;
+                fruitTickCounter = 0;
+            }
+            case 5 -> { // WAIT_RETURN
+                if (fruitTickCounter >= config.fruit.returnDelay) {
+                    fruitStep = 6;
+                    fruitTickCounter = 0;
+                }
+            }
+            case 6 -> { // SWITCH_TO_SWORD
+                selectSlot(player, config.swordSlotIndex());
+                fruitInHand = false; // ÉPÉE DE RETOUR
+                fruitStep = -1;
+                fruitTickCounter = 0;
+            }
+        }
+    }
+
+    public boolean isFruitActive() { return fruitStep >= 0; }
+
+    public void cancelFruit(MinecraftClient client, ModConfig config) {
+        if (fruitStep >= 0) {
+            client.options.useKey.setPressed(false);
+            client.options.attackKey.setPressed(false);
+            if (client.player != null) selectSlot(client.player, config.swordSlotIndex());
+            fruitStep = -1;
+            fruitTickCounter = 0;
+            fruitInHand = false;
+        }
+    }
+
+    // ══════════════════════════════════════════════
+    //  SLOT SWITCHING
+    // ══════════════════════════════════════════════
+
+    public void ensureSwordEquipped(ClientPlayerEntity player, ModConfig config) {
+        if (getSelectedSlot(player) != config.swordSlotIndex()) {
+            selectSlot(player, config.swordSlotIndex());
+            fruitInHand = false;
+        }
+    }
+
+    public void selectSlot(ClientPlayerEntity player, int slot) {
+        if (slot < 0 || slot > 8) return;
+        if (!slotFieldSearched) {
+            slotFieldSearched = true;
+            try {
+                for (Field f : PlayerInventory.class.getDeclaredFields()) {
+                    if (f.getType() == int.class) {
+                        f.setAccessible(true);
+                        int val = f.getInt(player.getInventory());
+                        if (val >= 0 && val <= 8) {
+                            String name = f.getName();
+                            if (name.contains("selected") || name.contains("Slot") ||
+                                name.contains("slot") || name.equals("field_7545")) {
+                                selectedSlotField = f;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (selectedSlotField == null) {
+                    for (Field f : PlayerInventory.class.getDeclaredFields()) {
+                        if (f.getType() == int.class) {
+                            f.setAccessible(true);
+                            int val = f.getInt(player.getInventory());
+                            if (val >= 0 && val <= 8) {
+                                selectedSlotField = f;
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                MinepieceFarmer.LOGGER.warn("Cannot find selectedSlot: {}", e.getMessage());
+            }
+        }
+        if (selectedSlotField != null) {
+            try { selectedSlotField.setInt(player.getInventory(), slot); }
+            catch (Exception ignored) {}
+        }
+    }
+
+    public int getSelectedSlot(ClientPlayerEntity player) {
+        if (selectedSlotField != null) {
+            try { return selectedSlotField.getInt(player.getInventory()); }
+            catch (Exception ignored) {}
+        }
+        return -1;
+    }
+
+    public void reset(MinecraftClient client, ModConfig config) {
+        cancelFruit(client, config);
+        attackCooldown = 0;
+        hakiTimer = 0;
+        hakiReleaseTimer = -1;
+        fruitCooldown = 0;
+        fruitInHand = false;
+        hitsWithoutHurtSound = 0;
+        lastKnownHurtTime = 0;
+    }
+}
