@@ -1,0 +1,20 @@
+{
+    "schemaVersion": 1,
+    "id": "minepiecefarmer",
+    "version": "${version}",
+    "name": "MinepieceFarmer V5",
+    "description": "AFK Farming bot for Minepiece server - Modular architecture",
+    "authors": ["Arthur"],
+    "contact": {},
+    "license": "All-Rights-Reserved",
+    "environment": "client",
+    "entrypoints": {
+        "client": ["com.minepiecefarmer.MinepieceFarmer"]
+    },
+    "mixins": ["minepiecefarmer.mixins.json"],
+    "depends": {
+        "fabricloader": ">=0.16.0",
+        "fabric-api": "*",
+        "minecraft": "~1.21"
+    }
+}
